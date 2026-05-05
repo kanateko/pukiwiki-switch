@@ -72,7 +72,7 @@ class SwitchPlugin
 
         $items = self::parseItems($options['body'], $renderType, $options['separator']);
         if (empty($items)) {
-            if ($options['type'] === 'number' || $options['type'] === 'linear') {
+            if (in_array($options['type'], ['number', 'linear', 'exponential'])) {
                 $items = ['', '', self::DEFAULT_RANGE_ATTRS[2]];
             } else {
                 return self::showError('err_empty');
@@ -93,6 +93,7 @@ class SwitchPlugin
             'range'  => self::renderRange($id, $group, $items, $options, $wrapperClass),
             'number' => self::renderNumber($id, $group, $items, $options, $wrapperClass),
             'linear' => self::renderLinear($id, $group, $items, $options, $wrapperClass),
+            'exponential' => self::renderExponential($id, $group, $items, $options, $wrapperClass),
             default  => self::renderDefault($id, $group, $items, $options, $renderType, $wrapperClass),
         };
 
@@ -129,7 +130,7 @@ class SwitchPlugin
                         $options['separator'] = $val;
                         break;
                     case 'type':
-                        if (in_array($val, ['select', 'range', 'number', 'linear', 'default'])) {
+                        if (in_array($val, ['select', 'range', 'number', 'linear', 'exponential', 'default'])) {
                             $options['type'] = $val;
                         }
                         break;
@@ -155,7 +156,7 @@ class SwitchPlugin
                         return ['error' => 'err_unknown', 'error_val' => $arg];
                 }
             } else {
-                if (in_array($arg, ['select', 'range', 'number', 'linear', 'default'])) {
+                if (in_array($arg, ['select', 'range', 'number', 'linear', 'exponential', 'default'])) {
                     $options['type'] = $arg;
                 } elseif (in_array($arg, ['transparent', 'disable', 'rtl'])) {
                     $options['flags'][] = $arg;
@@ -259,7 +260,7 @@ class SwitchPlugin
         if ($step <= 0) return self::showError('err_step');
 
         $startIndex = self::$groupStartIndex[$group];
-        $initialValue = self::calculateValue($startIndex, $min, $max, $step);
+        $initialValue = self::calculateValue($startIndex, $min, $max, $step, 'number');
 
         $label = $options['label'] ? "<label for=\"$id\" class=\"switch-label\">{$options['label']}</label>" : '';
         $style = $options['width'] ? " style=\"width:{$options['width']}\"" : '';
@@ -271,7 +272,19 @@ class SwitchPlugin
     {
         [$min, $max, $step] = self::getRangeAttrs($items, true);
         $startIndex = self::$groupStartIndex[$group];
-        $initialValue = self::calculateValue($startIndex, $min, $max, $step);
+        $initialValue = self::calculateValue($startIndex, $min, $max, $step, 'linear');
+
+        $displayValue = number_format($initialValue, self::getDecimals($step));
+        $dataAttrs = " data-group=\"" . htmlsc($group) . "\" data-min=\"$min\" data-max=\"$max\" data-step=\"$step\"";
+
+        return "<span id=\"$id\" class=\"$wrapperClass\"$dataAttrs>$displayValue</span>";
+    }
+
+    private static function renderExponential(string $id, string $group, array $items, array $options, string $wrapperClass): string
+    {
+        [$min, $max, $step] = self::getRangeAttrs($items, true);
+        $startIndex = self::$groupStartIndex[$group];
+        $initialValue = self::calculateValue($startIndex, $min, $max, $step, 'exponential');
 
         $displayValue = number_format($initialValue, self::getDecimals($step));
         $dataAttrs = " data-group=\"" . htmlsc($group) . "\" data-min=\"$min\" data-max=\"$max\" data-step=\"$step\"";
@@ -301,10 +314,14 @@ class SwitchPlugin
         return [$min, $max, $step];
     }
 
-    private static function calculateValue(int $index, float $min, float $max, float $step): float
+    private static function calculateValue(int $index, float $min, float $max, float $step, string $type = 'linear'): float
     {
-        $val = ($step > 0) ? $min + ($index * $step) : $max + ($index * $step);
-        if (is_infinite($val)) $val = $index * $step;
+        if ($type === 'exponential') {
+            $val = $min * pow($step, $index);
+        } else {
+            $val = ($step > 0) ? $min + ($index * $step) : $max + ($index * $step);
+            if (is_infinite($val)) $val = $index * $step;
+        }
         return max($min, min($max, $val));
     }
 
