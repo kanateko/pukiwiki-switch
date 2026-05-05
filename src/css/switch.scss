@@ -34,11 +34,79 @@
   }
 
   &.switch-range {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    cursor: pointer;
     vertical-align: middle;
     margin-right: 0.5em;
+
+    &:focus {
+      outline: none;
+    }
+
+    // Variables for consistent coloring
+    --range-main: #3a82f9;
+    --range-track: var(--switch-border);
+
+    // Webkit (Chrome, Edge, Safari)
+    &::-webkit-slider-runnable-track {
+      background: linear-gradient(to right, var(--range-main) 0%, var(--range-main) var(--range-progress, 0%), var(--range-track) var(--range-progress, 0%), var(--range-track) 100%);
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    &::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      margin-top: -7px; // (track-height / 2) - (thumb-height / 2) = (4/2) - (18/2) = 2 - 9 = -7
+      background-color: var(--range-main);
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+
+    &:active::-webkit-slider-thumb {
+      transform: scale(1.15);
+      box-shadow: 0 0 0 6px rgba(58, 130, 249, 0.25);
+    }
+
+    // Firefox
+    &::-moz-range-track {
+      background: var(--range-track);
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    &::-moz-range-progress {
+      background-color: var(--range-main);
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    &::-moz-range-thumb {
+      background-color: var(--range-main);
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+      cursor: pointer;
+    }
+
+    &:active::-moz-range-thumb {
+      transform: scale(1.15);
+      box-shadow: 0 0 0 6px rgba(58, 130, 249, 0.25);
+    }
     
     & + output {
       font-variant-numeric: tabular-nums;
+      min-width: 2em;
+      display: inline-block;
     }
   }
 
