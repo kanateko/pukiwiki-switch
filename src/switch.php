@@ -45,6 +45,7 @@ class SwitchPlugin
 
     private static int $instanceCount = 0;
     private static array $groupStartIndex = [];
+    private static array $groupDecimals = [];
     private static bool $assetsLoaded = false;
 
     /**
@@ -81,9 +82,15 @@ class SwitchPlugin
 
         $id = self::PLUGIN_NAME . '_' . self::$instanceCount++;
         $group = $options['group'];
-        self::$groupStartIndex[$group] ??= $options['start'] ?? 0;
+        $isController = in_array($options['type'], ['select', 'range', 'number']);
 
-        $wrapperClass = "plugin-switch switch-{$options['type']}{$options['class']}";
+        self::$groupStartIndex[$group] ??= $options['start'] ?? 0;
+        if ($isController && $options['decimals'] !== null) {
+            self::$groupDecimals[$group] ??= $options['decimals'];
+        }
+
+        $controllerClass = $isController ? ' switch-controller' : '';
+        $wrapperClass = "plugin-switch switch-{$options['type']}{$controllerClass}{$options['class']}";
         if (defined('PKWK_SKIN_DARK_THEME') && PKWK_SKIN_DARK_THEME) {
             $wrapperClass .= ' plugin-switch--dark';
         }
@@ -107,6 +114,7 @@ class SwitchPlugin
             'group'     => self::DEFAULT_GROUP,
             'separator' => null,
             'start'     => null,
+            'decimals'  => null,
             'label'     => null,
             'class'     => '',
             'width'     => null,
@@ -137,6 +145,11 @@ class SwitchPlugin
                     case 'start':
                         if (is_numeric($val)) {
                             $options['start'] = max(0, (int)$val - 1);
+                        }
+                        break;
+                    case 'decimals':
+                        if (is_numeric($val)) {
+                            $options['decimals'] = max(0, (int)$val);
                         }
                         break;
                     case 'label':
@@ -274,8 +287,11 @@ class SwitchPlugin
         $startIndex = self::$groupStartIndex[$group];
         $initialValue = self::calculateValue($startIndex, $min, $max, $step, 'linear');
 
-        $displayValue = number_format($initialValue, self::getDecimals($step));
+        $decimals = $options['decimals'] ?? self::$groupDecimals[$group] ?? null;
+        $displayDecimals = $decimals ?? self::getDecimals($step);
+        $displayValue = number_format($initialValue, $displayDecimals);
         $dataAttrs = " data-group=\"" . htmlsc($group) . "\" data-min=\"$min\" data-max=\"$max\" data-step=\"$step\"";
+        if ($decimals !== null) $dataAttrs .= " data-decimals=\"$decimals\"";
 
         return "<span id=\"$id\" class=\"$wrapperClass\"$dataAttrs>$displayValue</span>";
     }
@@ -286,8 +302,11 @@ class SwitchPlugin
         $startIndex = self::$groupStartIndex[$group];
         $initialValue = self::calculateValue($startIndex, $min, $max, $step, 'exponential');
 
-        $displayValue = number_format($initialValue, self::getDecimals($step));
+        $decimals = $options['decimals'] ?? self::$groupDecimals[$group] ?? null;
+        $displayDecimals = $decimals ?? self::getDecimals($step);
+        $displayValue = number_format($initialValue, $displayDecimals);
         $dataAttrs = " data-group=\"" . htmlsc($group) . "\" data-min=\"$min\" data-max=\"$max\" data-step=\"$step\"";
+        if ($decimals !== null) $dataAttrs .= " data-decimals=\"$decimals\"";
 
         return "<span id=\"$id\" class=\"$wrapperClass\"$dataAttrs>$displayValue</span>";
     }

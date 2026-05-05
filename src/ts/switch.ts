@@ -143,6 +143,9 @@ class SwitchInstance {
   }
 
   private getDecimals(): number {
+    const decimals = this.element.dataset.decimals;
+    if (decimals !== undefined) return parseInt(decimals);
+
     const step = this.getStep();
     const str = step.toString();
     const pos = str.indexOf('.');
