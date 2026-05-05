@@ -201,14 +201,14 @@ class SwitchPlugin
         foreach ($items as &$item) {
             $item = trim($item);
             
-            if ($renderType === 'block') {
-                $item = convert_html(explode("\n", str_replace(["\r\n", "\r"], "\n", $item)));
-            }
-
             if (!empty($evac)) {
                 foreach ($evac as $i => $content) {
                     $item = str_replace("{evac$i}", $content, $item);
                 }
+            }
+
+            if ($renderType === 'block') {
+                $item = convert_html(explode("\n", str_replace(["\r\n", "\r"], "\n", $item)));
             }
         }
 
