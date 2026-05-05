@@ -1,0 +1,92 @@
+.plugin-switch {
+  --switch-bg: transparent;
+  --switch-text: inherit;
+  --switch-border: #ccc;
+  --switch-label-margin: 0.5em;
+  --switch-error-color: #d32f2f;
+
+  font-size: inherit;
+  color: var(--switch-text);
+  background-color: var(--switch-bg);
+
+  &.switch-select {
+    padding: 2px 4px;
+    border: 1px solid var(--switch-border);
+    border-radius: 4px;
+    vertical-align: middle;
+
+    &[data-transparent] {
+      appearance: none;
+      border: none;
+      outline: none;
+      background-color: transparent;
+      padding: 0;
+    }
+
+    &[data-disable] {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    &[data-rtl] {
+      direction: rtl;
+    }
+  }
+
+  &.switch-range {
+    vertical-align: middle;
+    margin-right: 0.5em;
+    
+    & + output {
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  &.switch-number {
+    padding: 2px 4px;
+    border: 1px solid var(--switch-border);
+    border-radius: 4px;
+    vertical-align: middle;
+  }
+
+  &.switch-default {
+    display: inline;
+    
+    div.switch-item {
+        display: none;
+        &[data-selected] {
+            display: block;
+        }
+    }
+    span.switch-item {
+        display: none;
+        &[data-selected] {
+            display: inline;
+        }
+    }
+  }
+
+  &.switch-linear {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.switch-label {
+  margin-right: var(--switch-label-margin);
+  vertical-align: middle;
+}
+
+.plugin-switch-error {
+  color: var(--switch-error-color);
+  font-weight: bold;
+  font-size: 0.9em;
+  margin: 0.5em 0;
+}
+
+// Dark Mode
+.plugin-switch--dark {
+  &.plugin-switch, .plugin-switch {
+    --switch-border: #555;
+    --switch-error-color: #ff5252;
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "switch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://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@github.com/kanateko/pukiwiki-switch.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kanateko/pukiwiki-switch/issues"
+  },
+  "homepage": "https://github.com/kanateko/pukiwiki-switch#readme",
+  "devDependencies": {
+    "autoprefixer": "^10.5.0",
+    "esbuild": "^0.28.0",
+    "postcss": "^8.5.14",
+    "sass": "^1.99.0"
+  }
+}
