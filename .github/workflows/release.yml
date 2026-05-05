@@ -23,23 +23,18 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: |
-            cd pukiwiki-plugins/plugins/switch
-            npm ci
+        run: npm ci
 
       - name: Build
-        run: |
-            cd pukiwiki-plugins/plugins/switch
-            npm run build
+        run: npm run build
 
       - name: Zip dist/
         run: |
-          cd pukiwiki-plugins/plugins/switch/dist
-          zip -r ../../../plugin.zip .
-          cd ../../../
+          cd dist
+          zip -r ../switch.zip .
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: plugin.zip
+          files: switch.zip
           generate_release_notes: true
