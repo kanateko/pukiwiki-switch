@@ -31,10 +31,10 @@ jobs:
       - name: Zip dist/
         run: |
           cd dist
-          zip -r ../switch.zip .
+          zip -r ../plugin.zip .
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: switch.zip
+          files: plugin.zip
           generate_release_notes: true
