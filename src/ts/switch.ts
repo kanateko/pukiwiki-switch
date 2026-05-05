@@ -31,6 +31,7 @@ class SwitchInstance {
 
     if (this.type === 'range') {
       this.output = el.nextElementSibling as HTMLElement;
+      this.updateTrackProgress();
     }
 
     this.init();
@@ -41,6 +42,7 @@ class SwitchInstance {
       this.element.addEventListener('input', (e) => {
         const index = this.getCurrentIndex();
         this.syncGroup(index);
+        if (this.type === 'range') this.updateTrackProgress();
       });
     }
   }
@@ -81,6 +83,7 @@ class SwitchInstance {
             maximumFractionDigits: this.getDecimals()
         });
       }
+      if (this.type === 'range') this.updateTrackProgress();
     } else if (this.type === 'linear') {
       const val = this.calculateValue(index);
       this.element.textContent = val.toLocaleString(undefined, {
@@ -155,6 +158,16 @@ class SwitchInstance {
         }
       });
     }
+  }
+
+  private updateTrackProgress(): void {
+    if (this.type !== 'range') return;
+    const input = this.element as HTMLInputElement;
+    const min = parseFloat(input.min) || 0;
+    const max = parseFloat(input.max) || 100;
+    const val = parseFloat(input.value);
+    const percentage = (val - min) / (max - min) * 100;
+    input.style.setProperty('--range-progress', `${percentage}%`);
   }
 
   public getId(): string { return this.id; }
