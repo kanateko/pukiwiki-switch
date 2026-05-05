@@ -317,7 +317,12 @@ class SwitchPlugin
     private static function calculateValue(int $index, float $min, float $max, float $step, string $type = 'linear'): float
     {
         if ($type === 'exponential') {
-            $val = $min * pow($step, $index);
+            $base = ($step >= 1.0) ? $min : $max;
+            if (is_infinite($base)) {
+                $other = ($step >= 1.0) ? $max : $min;
+                $base = !is_infinite($other) ? $other : ($step >= 1.0 ? self::DEFAULT_RANGE_ATTRS[0] : self::DEFAULT_RANGE_ATTRS[1]);
+            }
+            $val = $base * pow($step, $index);
         } else {
             $val = ($step > 0) ? $min + ($index * $step) : $max + ($index * $step);
             if (is_infinite($val)) $val = $index * $step;

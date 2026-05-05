@@ -111,7 +111,12 @@ class SwitchInstance {
 
     let val: number;
     if (this.type === 'exponential') {
-      val = min * Math.pow(step, index);
+      let base = (step >= 1.0) ? min : max;
+      if (!isFinite(base)) {
+        const other = (step >= 1.0) ? max : min;
+        base = isFinite(other) ? other : (step >= 1.0 ? 1 : 10);
+      }
+      val = base * Math.pow(step, index);
     } else {
       val = (step > 0) ? min + (index * step) : max + (index * step);
       if (isNaN(val) || !isFinite(val)) val = index * step;
