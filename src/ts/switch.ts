@@ -5,7 +5,7 @@
 interface SwitchOptions {
   id: string;
   group: string;
-  type: 'select' | 'range' | 'number' | 'linear' | 'default';
+  type: 'select' | 'range' | 'number' | 'linear' | 'exponential' | 'default';
   min?: number;
   max?: number;
   step?: number;
@@ -27,6 +27,7 @@ class SwitchInstance {
     else if (el.classList.contains('switch-range')) this.type = 'range';
     else if (el.classList.contains('switch-number')) this.type = 'number';
     else if (el.classList.contains('switch-linear')) this.type = 'linear';
+    else if (el.classList.contains('switch-exponential')) this.type = 'exponential';
     else this.type = 'default';
 
     if (this.type === 'range') {
@@ -84,7 +85,7 @@ class SwitchInstance {
         });
       }
       if (this.type === 'range') this.updateTrackProgress();
-    } else if (this.type === 'linear') {
+    } else if (this.type === 'linear' || this.type === 'exponential') {
       const val = this.calculateValue(index);
       this.element.textContent = val.toLocaleString(undefined, {
         minimumFractionDigits: this.getDecimals(),
@@ -108,8 +109,13 @@ class SwitchInstance {
     const max = this.getMax();
     const step = this.getStep();
 
-    let val = (step > 0) ? min + (index * step) : max + (index * step);
-    if (isNaN(val) || !isFinite(val)) val = index * step;
+    let val: number;
+    if (this.type === 'exponential') {
+      val = min * Math.pow(step, index);
+    } else {
+      val = (step > 0) ? min + (index * step) : max + (index * step);
+      if (isNaN(val) || !isFinite(val)) val = index * step;
+    }
     
     return Math.max(min, Math.min(max, val));
   }
