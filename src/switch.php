@@ -71,12 +71,19 @@ class SwitchPlugin
             return self::showError($options['error'], $options['error_val'] ?? '');
         }
 
-        $items = self::parseItems($options['body'], $renderType, $options['separator']);
-        if (empty($items)) {
-            if (in_array($options['type'], ['number', 'linear', 'exponential'])) {
-                $items = ['', '', self::DEFAULT_RANGE_ATTRS[2]];
-            } else {
+        if ($options['type'] === 'calc') {
+            $items = [trim($options['body'])];
+            if (empty($items[0])) {
                 return self::showError('err_empty');
+            }
+        } else {
+            $items = self::parseItems($options['body'], $renderType, $options['separator']);
+            if (empty($items)) {
+                if (in_array($options['type'], ['number', 'linear', 'exponential'])) {
+                    $items = ['', '', self::DEFAULT_RANGE_ATTRS[2]];
+                } else {
+                    return self::showError('err_empty');
+                }
             }
         }
 
@@ -101,6 +108,7 @@ class SwitchPlugin
             'number' => self::renderNumber($id, $group, $items, $options, $wrapperClass),
             'linear' => self::renderLinear($id, $group, $items, $options, $wrapperClass),
             'exponential' => self::renderExponential($id, $group, $items, $options, $wrapperClass),
+            'calc'   => self::renderCalc($id, $group, $items, $options, $wrapperClass),
             default  => self::renderDefault($id, $group, $items, $options, $renderType, $wrapperClass),
         };
 
@@ -138,7 +146,7 @@ class SwitchPlugin
                         $options['separator'] = $val;
                         break;
                     case 'type':
-                        if (in_array($val, ['select', 'range', 'number', 'linear', 'exponential', 'default'])) {
+                        if (in_array($val, ['select', 'range', 'number', 'linear', 'exponential', 'calc', 'default'])) {
                             $options['type'] = $val;
                         }
                         break;
@@ -169,7 +177,7 @@ class SwitchPlugin
                         return ['error' => 'err_unknown', 'error_val' => $arg];
                 }
             } else {
-                if (in_array($arg, ['select', 'range', 'number', 'linear', 'exponential', 'default'])) {
+                if (in_array($arg, ['select', 'range', 'number', 'linear', 'exponential', 'calc', 'default'])) {
                     $options['type'] = $arg;
                 } elseif (in_array($arg, ['transparent', 'disable', 'rtl'])) {
                     $options['flags'][] = $arg;
@@ -311,6 +319,28 @@ class SwitchPlugin
         return "<span id=\"$id\" class=\"$wrapperClass\"$dataAttrs>$displayValue</span>";
     }
 
+    private static function renderCalc(string $id, string $group, array $items, array $options, string $wrapperClass): string
+    {
+        $formula = $items[0];
+        $startIndex = self::$groupStartIndex[$group];
+
+        try {
+            $initialValue = SwitchFormulaEvaluator::evaluate($formula, (float)$startIndex);
+        } catch (Throwable $e) {
+            return self::showError('err_invalid', "formula error: " . $e->getMessage());
+        }
+
+        $decimals = $options['decimals'] ?? self::$groupDecimals[$group] ?? null;
+        $displayDecimals = $decimals ?? self::getDecimals($initialValue);
+        $displayValue = number_format($initialValue, $displayDecimals);
+        $dataAttrs = " data-group=\"" . htmlsc($group) . "\" data-calc=\"" . htmlsc($formula) . "\"";
+        if ($decimals !== null) {
+            $dataAttrs .= " data-decimals=\"$decimals\"";
+        }
+
+        return "<span id=\"$id\" class=\"$wrapperClass\"$dataAttrs>$displayValue</span>";
+    }
+
     private static function renderDefault(string $id, string $group, array $items, array $options, string $renderType, string $wrapperClass): string
     {
         $tag = ($renderType === 'block') ? 'div' : 'span';
@@ -378,5 +408,172 @@ class SwitchPlugin
         }
 
         return "<script type=\"module\">$injection$js</script>";
+    }
+}
+
+class SwitchFormulaEvaluator
+{
+    private static array $operators = [
+        '+' => ['prec' => 1, 'assoc' => 'L'],
+        '-' => ['prec' => 1, 'assoc' => 'L'],
+        '*' => ['prec' => 2, 'assoc' => 'L'],
+        '/' => ['prec' => 2, 'assoc' => 'L'],
+        '%' => ['prec' => 2, 'assoc' => 'L'],
+        '**' => ['prec' => 3, 'assoc' => 'R'],
+    ];
+
+    private static array $functions = ['pow', 'min', 'max', 'abs', 'floor', 'ceil', 'round', 'sqrt'];
+
+    public static function evaluate(string $expr, float $x): float
+    {
+        $tokens = self::tokenize($expr);
+        $rpn = self::shuntingYard($tokens);
+        return self::evaluateRPN($rpn, $x);
+    }
+
+    private static function tokenize(string $expr): array
+    {
+        $pattern = '/\*\*|[0-9]+(?:\.[0-9]+)?|[a-zA-Z_][a-zA-Z0-9_]*|[\+\-\*\/\%\(\),]/';
+        if (preg_match_all($pattern, $expr, $matches)) {
+            return $matches[0];
+        }
+        return [];
+    }
+
+    private static function shuntingYard(array $tokens): array
+    {
+        $outputQueue = [];
+        $operatorStack = [];
+
+        foreach ($tokens as $token) {
+            if (is_numeric($token)) {
+                $outputQueue[] = ['type' => 'num', 'val' => (float)$token];
+            } elseif ($token === 'x') {
+                $outputQueue[] = ['type' => 'var', 'val' => 'x'];
+            } elseif (in_array($token, self::$functions)) {
+                $operatorStack[] = ['type' => 'func', 'val' => $token];
+            } elseif ($token === ',') {
+                while (!empty($operatorStack) && end($operatorStack)['val'] !== '(') {
+                    $outputQueue[] = array_pop($operatorStack);
+                }
+                if (empty($operatorStack)) {
+                    throw new Exception("Mismatched parentheses or comma");
+                }
+            } elseif (isset(self::$operators[$token])) {
+                $op1 = $token;
+                while (!empty($operatorStack)) {
+                    $op2 = end($operatorStack);
+                    if ($op2['type'] === 'op' && (
+                        (self::$operators[$op1]['assoc'] === 'L' && self::$operators[$op1]['prec'] <= self::$operators[$op2['val']]['prec']) ||
+                        (self::$operators[$op1]['assoc'] === 'R' && self::$operators[$op1]['prec'] < self::$operators[$op2['val']]['prec'])
+                    )) {
+                        $outputQueue[] = array_pop($operatorStack);
+                    } else {
+                        break;
+                    }
+                }
+                $operatorStack[] = ['type' => 'op', 'val' => $op1];
+            } elseif ($token === '(') {
+                $operatorStack[] = ['type' => 'paren', 'val' => '('];
+            } elseif ($token === ')') {
+                while (!empty($operatorStack) && end($operatorStack)['val'] !== '(') {
+                    $outputQueue[] = array_pop($operatorStack);
+                }
+                if (empty($operatorStack)) {
+                    throw new Exception("Mismatched parentheses");
+                }
+                array_pop($operatorStack); // '(' をポップ
+                if (!empty($operatorStack) && end($operatorStack)['type'] === 'func') {
+                    $outputQueue[] = array_pop($operatorStack);
+                }
+            } else {
+                throw new Exception("Invalid token: " . $token);
+            }
+        }
+
+        while (!empty($operatorStack)) {
+            $op = array_pop($operatorStack);
+            if ($op['val'] === '(' || $op['val'] === ')') {
+                throw new Exception("Mismatched parentheses");
+            }
+            $outputQueue[] = $op;
+        }
+
+        return $outputQueue;
+    }
+
+    private static function evaluateRPN(array $rpn, float $x): float
+    {
+        $stack = [];
+
+        foreach ($rpn as $token) {
+            if ($token['type'] === 'num') {
+                $stack[] = $token['val'];
+            } elseif ($token['type'] === 'var') {
+                $stack[] = $x;
+            } elseif ($token['type'] === 'op') {
+                if (count($stack) < 2) {
+                    throw new Exception("Invalid expression");
+                }
+                $b = array_pop($stack);
+                $a = array_pop($stack);
+                switch ($token['val']) {
+                    case '+': $stack[] = $a + $b; break;
+                    case '-': $stack[] = $a - $b; break;
+                    case '*': $stack[] = $a * $b; break;
+                    case '/':
+                        if ($b == 0.0) {
+                            throw new Exception("Division by zero");
+                        }
+                        $stack[] = $a / $b;
+                        break;
+                    case '%':
+                        if ($b == 0.0) {
+                            throw new Exception("Division by zero");
+                        }
+                        $stack[] = fmod($a, $b);
+                        break;
+                    case '**':
+                        $stack[] = pow($a, $b);
+                        break;
+                }
+            } elseif ($token['type'] === 'func') {
+                $func = $token['val'];
+                if (in_array($func, ['abs', 'floor', 'ceil', 'round', 'sqrt'])) {
+                    if (count($stack) < 1) {
+                        throw new Exception("Invalid function arguments");
+                    }
+                    $a = array_pop($stack);
+                    switch ($func) {
+                        case 'abs': $stack[] = abs($a); break;
+                        case 'floor': $stack[] = floor($a); break;
+                        case 'ceil': $stack[] = ceil($a); break;
+                        case 'round': $stack[] = round($a); break;
+                        case 'sqrt':
+                            if ($a < 0) {
+                                throw new Exception("Square root of negative number");
+                            }
+                            $stack[] = sqrt($a);
+                            break;
+                    }
+                } elseif (in_array($func, ['pow', 'min', 'max'])) {
+                    if (count($stack) < 2) {
+                        throw new Exception("Invalid function arguments");
+                    }
+                    $b = array_pop($stack);
+                    $a = array_pop($stack);
+                    switch ($func) {
+                        case 'pow': $stack[] = pow($a, $b); break;
+                        case 'min': $stack[] = min($a, $b); break;
+                        case 'max': $stack[] = max($a, $b); break;
+                    }
+                }
+            }
+        }
+
+        if (count($stack) !== 1) {
+            throw new Exception("Invalid expression");
+        }
+        return $stack[0];
     }
 }
