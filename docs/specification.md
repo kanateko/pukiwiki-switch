@@ -10,7 +10,9 @@
     - `select`: プルダウンメニューによる選択
     - `range`: スライダーによる数値選択
     - `number`: 数値入力による選択
-    - `linear`: 他のコントロールに連動して計算された値を表示
+    - `linear`: 他のコントロールに連動して計算された値（線形）を表示
+    - `exponential`: 他のコントロールに連動して計算された値（指数）を表示
+    - `calc`: 他のコントロールに連動して指定された計算式で計算された値を表示
     - `default`: 他のコントロールに連動して表示要素を切り替え
 
 ## 構文
@@ -26,7 +28,7 @@ items
 
 ## 引数 (options)
 
-- **表示タイプ**: `select`, `range`, `number`, `linear`, `default` (省略時は `default`)
+- **表示タイプ**: `select`, `range`, `number`, `linear`, `exponential`, `calc`, `default` (省略時は `default`)
 - **グループ**: `group=NAME` または `~NAME` (省略時は `default`)
 - **開始位置**: `start=N` (1から始まるインデックス)
 - **セパレータ**: `separator=CHAR` (インラインのデフォルトは `:`, ブロックのデフォルトは `#-`)

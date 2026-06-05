@@ -2,7 +2,7 @@
 /**
  * プルダウンやスライダーと連動して表示内容を切り替えるプラグイン
  *
- * @version 1.3.0
+ * @version 1.3.1
  * @author kanateko
  * @link https://jpngamerswiki.com/?f51cd63681
  * @license https://www.gnu.org/licenses/gpl-3.0.html GPLv3
