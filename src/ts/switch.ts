@@ -5,7 +5,7 @@
 interface SwitchOptions {
   id: string;
   group: string;
-  type: 'select' | 'range' | 'number' | 'linear' | 'exponential' | 'default';
+  type: 'select' | 'range' | 'number' | 'linear' | 'exponential' | 'calc' | 'default';
   min?: number;
   max?: number;
   step?: number;
@@ -28,6 +28,7 @@ class SwitchInstance {
     else if (el.classList.contains('switch-number')) this.type = 'number';
     else if (el.classList.contains('switch-linear')) this.type = 'linear';
     else if (el.classList.contains('switch-exponential')) this.type = 'exponential';
+    else if (el.classList.contains('switch-calc')) this.type = 'calc';
     else this.type = 'default';
 
     if (this.type === 'range') {
@@ -85,12 +86,16 @@ class SwitchInstance {
         });
       }
       if (this.type === 'range') this.updateTrackProgress();
-    } else if (this.type === 'linear' || this.type === 'exponential') {
+    } else if (this.type === 'linear' || this.type === 'exponential' || this.type === 'calc') {
       const val = this.calculateValue(index);
-      this.element.textContent = val.toLocaleString(undefined, {
-        minimumFractionDigits: this.getDecimals(),
-        maximumFractionDigits: this.getDecimals()
-      });
+      if (isNaN(val) || !isFinite(val)) {
+        this.element.textContent = 'Error';
+      } else {
+        this.element.textContent = val.toLocaleString(undefined, {
+          minimumFractionDigits: this.getDecimals(val),
+          maximumFractionDigits: this.getDecimals(val)
+        });
+      }
     } else if (this.type === 'default') {
       const items = this.element.querySelectorAll('.switch-item');
       const targetIndex = Math.min(index, items.length - 1);
@@ -105,6 +110,16 @@ class SwitchInstance {
   }
 
   private calculateValue(index: number): number {
+    if (this.type === 'calc') {
+      const formula = this.element.dataset.calc || '';
+      try {
+        return SwitchFormulaEvaluator.evaluate(formula, index);
+      } catch (e) {
+        console.error(e);
+        return NaN;
+      }
+    }
+
     const min = this.getMin();
     const max = this.getMax();
     const step = this.getStep();
@@ -142,9 +157,15 @@ class SwitchInstance {
     return val ? parseFloat(val) : 1;
   }
 
-  private getDecimals(): number {
+  private getDecimals(val?: number): number {
     const decimals = this.element.dataset.decimals;
     if (decimals !== undefined) return parseInt(decimals);
+
+    if (this.type === 'calc' && val !== undefined) {
+      const str = val.toString();
+      const pos = str.indexOf('.');
+      return (pos === -1) ? 0 : str.length - pos - 1;
+    }
 
     const step = this.getStep();
     const str = step.toString();
@@ -226,6 +247,151 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initAll);
 } else {
   initAll();
+}
+
+class SwitchFormulaEvaluator {
+  private static operators: Record<string, { prec: number; assoc: 'L' | 'R' }> = {
+    '+': { prec: 1, assoc: 'L' },
+    '-': { prec: 1, assoc: 'L' },
+    '*': { prec: 2, assoc: 'L' },
+    '/': { prec: 2, assoc: 'L' },
+    '%': { prec: 2, assoc: 'L' },
+    '**': { prec: 3, assoc: 'R' }
+  };
+
+  private static functions = ['pow', 'min', 'max', 'abs', 'floor', 'ceil', 'round', 'sqrt'];
+
+  public static evaluate(expr: string, x: number): number {
+    const tokens = this.tokenize(expr);
+    const rpn = this.shuntingYard(tokens);
+    return this.evaluateRPN(rpn, x);
+  }
+
+  private static tokenize(expr: string): string[] {
+    const pattern = /\*\*|[0-9]+(?:\.[0-9]+)?|[a-zA-Z_][a-zA-Z0-9_]*|[\+\-\*\/\%\(\),]/g;
+    return expr.match(pattern) || [];
+  }
+
+  private static shuntingYard(tokens: string[]): Array<{ type: string; val: any }> {
+    const outputQueue: Array<{ type: string; val: any }> = [];
+    const operatorStack: Array<{ type: string; val: string }> = [];
+
+    for (const token of tokens) {
+      if (!isNaN(Number(token))) {
+        outputQueue.push({ type: 'num', val: parseFloat(token) });
+      } else if (token === 'x') {
+        outputQueue.push({ type: 'var', val: 'x' });
+      } else if (this.functions.includes(token)) {
+        operatorStack.push({ type: 'func', val: token });
+      } else if (token === ',') {
+        while (operatorStack.length > 0 && operatorStack[operatorStack.length - 1].val !== '(') {
+          outputQueue.push(operatorStack.pop()!);
+        }
+        if (operatorStack.length === 0) {
+          throw new Error("Mismatched parentheses or comma");
+        }
+      } else if (this.operators[token]) {
+        const op1 = token;
+        while (operatorStack.length > 0) {
+          const op2 = operatorStack[operatorStack.length - 1];
+          if (op2.type === 'op' && (
+            (this.operators[op1].assoc === 'L' && this.operators[op1].prec <= this.operators[op2.val].prec) ||
+            (this.operators[op1].assoc === 'R' && this.operators[op1].prec < this.operators[op2.val].prec)
+          )) {
+            outputQueue.push(operatorStack.pop()!);
+          } else {
+            break;
+          }
+        }
+        operatorStack.push({ type: 'op', val: op1 });
+      } else if (token === '(') {
+        operatorStack.push({ type: 'paren', val: '(' });
+      } else if (token === ')') {
+        while (operatorStack.length > 0 && operatorStack[operatorStack.length - 1].val !== '(') {
+          outputQueue.push(operatorStack.pop()!);
+        }
+        if (operatorStack.length === 0) {
+          throw new Error("Mismatched parentheses");
+        }
+        operatorStack.pop(); // Pop '('
+        if (operatorStack.length > 0 && operatorStack[operatorStack.length - 1].type === 'func') {
+          outputQueue.push(operatorStack.pop()!);
+        }
+      } else {
+        throw new Error("Invalid token: " + token);
+      }
+    }
+
+    while (operatorStack.length > 0) {
+      const op = operatorStack.pop()!;
+      if (op.val === '(' || op.val === ')') {
+        throw new Error("Mismatched parentheses");
+      }
+      outputQueue.push(op);
+    }
+
+    return outputQueue;
+  }
+
+  private static evaluateRPN(rpn: Array<{ type: string; val: any }>, x: number): number {
+    const stack: number[] = [];
+
+    for (const token of rpn) {
+      if (token.type === 'num') {
+        stack.push(token.val);
+      } else if (token.type === 'var') {
+        stack.push(x);
+      } else if (token.type === 'op') {
+        if (stack.length < 2) throw new Error("Invalid expression");
+        const b = stack.pop()!;
+        const a = stack.pop()!;
+        switch (token.val) {
+          case '+': stack.push(a + b); break;
+          case '-': stack.push(a - b); break;
+          case '*': stack.push(a * b); break;
+          case '/':
+            if (b === 0) throw new Error("Division by zero");
+            stack.push(a / b);
+            break;
+          case '%':
+            if (b === 0) throw new Error("Division by zero");
+            stack.push(a % b);
+            break;
+          case '**':
+            stack.push(Math.pow(a, b));
+            break;
+        }
+      } else if (token.type === 'func') {
+        const func = token.val;
+        if (['abs', 'floor', 'ceil', 'round', 'sqrt'].includes(func)) {
+          if (stack.length < 1) throw new Error("Invalid function arguments");
+          const a = stack.pop()!;
+          switch (func) {
+            case 'abs': stack.push(Math.abs(a)); break;
+            case 'floor': stack.push(Math.floor(a)); break;
+            case 'ceil': stack.push(Math.ceil(a)); break;
+            case 'round': stack.push(Math.round(a)); break;
+            case 'sqrt':
+              if (a < 0) throw new Error("Square root of negative number");
+              stack.push(Math.sqrt(a));
+              break;
+          }
+        } else if (['pow', 'min', 'max'].includes(func)) {
+          if (stack.length < 2) throw new Error("Invalid function arguments");
+          const b = stack.pop()!;
+          const a = stack.pop()!;
+          switch (func) {
+            case 'pow': stack.push(Math.pow(a, b)); break;
+            case 'min': stack.push(Math.min(a, b)); break;
+            case 'max': stack.push(Math.max(a, b)); break;
+          }
+        }
+      }
+    }
+
+    if (stack.length !== 1) throw new Error("Invalid expression");
+    return stack[0];
+  }
 }
 
 export {};
